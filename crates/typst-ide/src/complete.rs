@@ -106,16 +106,8 @@ fn complete_comments(ctx: &mut CompletionContext) -> bool {
     matches!(ctx.leaf.kind(), SyntaxKind::LineComment | SyntaxKind::BlockComment)
 }
 
-/// Complete in markup mode.
-fn complete_markup(ctx: &mut CompletionContext) -> bool {
-    // Bail if we aren't even in markup.
-    if !matches!(
-        ctx.leaf.parent_kind(),
-        None | Some(SyntaxKind::Markup) | Some(SyntaxKind::Ref)
-    ) {
-        return false;
-    }
-
+/// Complete interpolated elements common to math and markup.
+fn complete_math_or_markup(ctx: &mut CompletionContext) -> bool {
     // Start of an interpolated identifier: "#|".
     if ctx.leaf.kind() == SyntaxKind::Hash {
         ctx.from = ctx.cursor;
@@ -123,17 +115,10 @@ fn complete_markup(ctx: &mut CompletionContext) -> bool {
         return true;
     }
 
-    // An existing identifier: "#pa|".
+    // Behind existing interpolated identifier: "#pa|".
     if ctx.leaf.kind() == SyntaxKind::Ident {
         ctx.from = ctx.leaf.offset();
         code_completions(ctx, true);
-        return true;
-    }
-
-    // Start of a reference: "@|" or "@he|".
-    if ctx.leaf.kind() == SyntaxKind::RefMarker {
-        ctx.from = ctx.leaf.offset() + 1;
-        ctx.label_completions();
         return true;
     }
 
@@ -158,6 +143,30 @@ fn complete_markup(ctx: &mut CompletionContext) -> bool {
             code_completions(ctx, false);
             return true;
         }
+    }
+
+    false
+}
+
+/// Complete in markup mode.
+fn complete_markup(ctx: &mut CompletionContext) -> bool {
+    // Bail if we aren't even in markup.
+    if !matches!(
+        ctx.leaf.parent_kind(),
+        None | Some(SyntaxKind::Markup) | Some(SyntaxKind::Ref)
+    ) {
+        return false;
+    }
+
+    if complete_math_or_markup(ctx) {
+        return true;
+    }
+
+    // Start of a reference: "@|" or "@he|".
+    if ctx.leaf.kind() == SyntaxKind::RefMarker {
+        ctx.from = ctx.leaf.offset() + 1;
+        ctx.label_completions();
+        return true;
     }
 
     // Directly after a raw block.
@@ -298,17 +307,7 @@ fn complete_math(ctx: &mut CompletionContext) -> bool {
         return false;
     }
 
-    // Start of an interpolated identifier: "$#|$".
-    if ctx.leaf.kind() == SyntaxKind::Hash {
-        ctx.from = ctx.cursor;
-        code_completions(ctx, true);
-        return true;
-    }
-
-    // Behind existing interpolated identifier: "$#pa|$".
-    if ctx.leaf.kind() == SyntaxKind::Ident {
-        ctx.from = ctx.leaf.offset();
-        code_completions(ctx, true);
+    if complete_math_or_markup(ctx) {
         return true;
     }
 
